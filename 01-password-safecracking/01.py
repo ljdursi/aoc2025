@@ -25,10 +25,22 @@ class SafeState(object):
 
     def rotate(self, rotation: Rotation):
         direction, steps = rotation.direction, rotation.steps
+        rot_start = self.current_position
+
+        n_zeros = steps // self.dial_size
+        steps = steps % self.dial_size
+
         if direction == RotDir.LEFT:
-            self.current_position = (self.current_position - steps) % self.dial_size
+            rot_end = (rot_start - steps) % self.dial_size
+            if steps > rot_start and rot_start != 0 and rot_end != 0:
+                n_zeros += 1
         elif direction == RotDir.RIGHT:
-            self.current_position = (self.current_position + steps) % self.dial_size
+            rot_end = (rot_start + steps) % self.dial_size
+            if steps > (self.dial_size - rot_start) and rot_start != 0 and rot_end != 0:
+                n_zeros += 1
+
+        self.current_position = rot_end
+        self.zero_crossings += n_zeros
 
     def get_position(self) -> int:
         return self.current_position
@@ -82,5 +94,4 @@ if __name__ == "__main__":
 
     print("Part 2: total zero crossings during rotations")
     total_zero_crossings = safe.get_zero_crossings()
-    print(total_zero_crossings)
     print(total_zero_crossings + num_zeros)
