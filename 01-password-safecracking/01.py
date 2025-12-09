@@ -23,24 +23,21 @@ class SafeState(object):
         self.current_position = current_position % dial_size
         self.zero_crossings = 0
 
+    def _count_multiples_between(self, start: int, end: int, multiple: int) -> int:
+        """Count how many multiples of 'multiple' exist strictly between start and end."""
+        min_pos, max_pos = min(start, end), max(start, end)
+        first = (min_pos // multiple + 1) * multiple
+        last = max_pos // multiple * multiple
+        if max_pos % multiple == 0:
+            last -= multiple
+        return max(0, (last - first) // multiple + 1)
+
     def rotate(self, rotation: Rotation):
-        direction, steps = rotation.direction, rotation.steps
-        rot_start = self.current_position
+        start = self.current_position
+        end = start + (rotation.steps if rotation.direction == RotDir.RIGHT else -rotation.steps)
 
-        n_zeros = steps // self.dial_size
-        steps = steps % self.dial_size
-
-        if direction == RotDir.LEFT:
-            rot_end = (rot_start - steps) % self.dial_size
-            if steps > rot_start and rot_start != 0 and rot_end != 0:
-                n_zeros += 1
-        elif direction == RotDir.RIGHT:
-            rot_end = (rot_start + steps) % self.dial_size
-            if steps > (self.dial_size - rot_start) and rot_start != 0 and rot_end != 0:
-                n_zeros += 1
-
-        self.current_position = rot_end
-        self.zero_crossings += n_zeros
+        self.zero_crossings += self._count_multiples_between(start, end, self.dial_size)
+        self.current_position = end % self.dial_size
 
     def get_position(self) -> int:
         return self.current_position
