@@ -25,8 +25,8 @@ def get_inputs(fileobj: TextIO) -> list[Range]:
             continue
 
         ranges = line.split(',')
-        for range in ranges:
-            input_ranges.append(Range(*map(int, range.split('-'))))
+        for range_str in ranges:
+            input_ranges.append(Range(*map(int, range_str.split('-'))))
 
     return input_ranges
 
@@ -46,26 +46,24 @@ def digit_concatenations(r: Range, ncopies: int=2) -> Iterator[int]:
     yield from takewhile(r.contains, candidates)
 
 
+def find_all_invalid_ids(r: Range) -> set[int]:
+    invalid_ids = set()
+    for ncopies in range(2, len(str(r.end)) + 1):
+        invalid_ids.update(digit_concatenations(r, ncopies))
+    return invalid_ids
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='02')
     parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin)
     args = parser.parse_args()
 
-    print("Part 1")
-
     ranges = get_inputs(args.file)
-    tot = 0
-    for r in ranges:
-        for d in digit_concatenations(r, 2):
-            tot += d
+
+    print("Part 1")
+    tot = sum(sum(digit_concatenations(r, 2)) for r in ranges)
     print(tot)
 
     print("Part 2")
-    tot = 0
-    for r in ranges:
-        invalid_ids = set()
-        for ncopies in range(2, len(str(r.end))+1):
-            for d in digit_concatenations(r, ncopies):
-                invalid_ids.add(d)
-        tot += sum(invalid_ids)
+    tot = sum(sum(find_all_invalid_ids(r)) for r in ranges)
     print(tot)
