@@ -4,7 +4,7 @@ Test suite for day3 functions (max_joltage, get_inputs, parse_batteries)
 """
 import unittest
 from io import StringIO
-from day3 import max_joltage, get_inputs, parse_batteries
+from day03 import max_joltage, get_inputs, parse_batteries
 
 
 class TestMaxJoltage(unittest.TestCase):

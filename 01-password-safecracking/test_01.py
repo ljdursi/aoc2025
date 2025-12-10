@@ -6,7 +6,7 @@ from io import StringIO
 sys.path.insert(0, '.')
 
 from importlib import import_module
-solution = import_module('01')
+import day01 as solution
 
 RotDir = solution.RotDir
 Rotation = solution.Rotation

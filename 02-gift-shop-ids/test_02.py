@@ -3,7 +3,7 @@ import unittest
 from io import StringIO
 from importlib import import_module
 
-solution = import_module('02')
+import day02 as solution
 Range = solution.Range
 get_inputs = solution.get_inputs
 digit_concatenations = solution.digit_concatenations
