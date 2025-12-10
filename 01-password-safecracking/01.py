@@ -53,25 +53,33 @@ class SafeState(object):
 
         return positions
 
+def parse_rotation_line(line: str) -> Rotation:
+    """Parse a single line like 'L3' or 'R5' into a Rotation object."""
+    line = line.strip()
+    if not line:
+        raise ValueError("Empty line cannot be parsed as rotation")
+
+    direction_char = line[0]
+    steps = int(line[1:])
+
+    if direction_char == 'L':
+        direction = RotDir.LEFT
+    elif direction_char == 'R':
+        direction = RotDir.RIGHT
+    else:
+        raise ValueError(f"Invalid direction character: {direction_char}")
+
+    return Rotation(direction, steps)
+
+
 def get_inputs(fileobj: TextIO) -> list[Rotation]:
-    # reads lines of the form "L3" or "R5" from fileobj
+    """Reads lines of the form 'L3' or 'R5' from fileobj."""
     rotations = []
     for line in fileobj:
         line = line.strip()
         if not line:
             continue
-
-        direction_char = line[0]
-        steps = int(line[1:])
-
-        if direction_char == 'L':
-            direction = RotDir.LEFT
-        elif direction_char == 'R':
-            direction = RotDir.RIGHT
-        else:
-            raise ValueError(f"Invalid direction character: {direction_char}")
-
-        rotations.append(Rotation(direction, steps))
+        rotations.append(parse_rotation_line(line))
     return rotations
 
 
