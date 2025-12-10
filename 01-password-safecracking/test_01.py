@@ -151,5 +151,118 @@ class TestRotation(unittest.TestCase):
                 self.assertEqual(actual_pos, expected_pos, msg)
 
 
+class TestZeroCrossings(unittest.TestCase):
+    """Test the zero crossing detection during rotations."""
+
+    def test_individual_zero_crossings(self):
+        """Test individual rotations that should cross zero during rotation."""
+        test_cases = [
+            # (start_pos, rotation_line, expected_crossings, description)
+            (50, "L68", 1, "L68 from 50 to 82 crosses 0 once"),
+            (95, "R60", 1, "R60 from 95 to 55 crosses 0 once"),
+            (14, "L82", 1, "L82 from 14 to 32 crosses 0 once"),
+        ]
+
+        for start_pos, line, expected_crossings, msg in test_cases:
+            with self.subTest(msg=msg):
+                safe = SafeState(dial_size=100, current_position=start_pos)
+                rotation = parse_rotation_line(line)
+                safe.rotate(rotation)
+
+                self.assertEqual(
+                    safe.get_zero_crossings(),
+                    expected_crossings,
+                    f"{msg}: expected {expected_crossings} crossings"
+                )
+
+    def test_individual_no_zero_crossings(self):
+        """Test individual rotations that should NOT cross zero during rotation."""
+        test_cases = [
+            # (start_pos, rotation_line, description)
+            (82, "L30", "L30 from 82 to 52 does not cross 0"),
+            (52, "R48", "R48 from 52 to 0 lands on 0 but doesn't cross during"),
+            (0, "L5", "L5 from 0 to 95 starts at 0 but doesn't cross"),
+            (55, "L55", "L55 from 55 to 0 lands on 0 but doesn't cross during"),
+            (0, "L1", "L1 from 0 to 99 starts at 0 but doesn't cross"),
+            (99, "L99", "L99 from 99 to 0 lands on 0 but doesn't cross during"),
+            (0, "R14", "R14 from 0 to 14 starts at 0 but doesn't cross"),
+        ]
+
+        for start_pos, line, msg in test_cases:
+            with self.subTest(msg=msg):
+                safe = SafeState(dial_size=100, current_position=start_pos)
+                rotation = parse_rotation_line(line)
+                safe.rotate(rotation)
+
+                self.assertEqual(
+                    safe.get_zero_crossings(),
+                    0,
+                    f"{msg}: expected 0 crossings"
+                )
+
+    def test_complete_sequence_zero_crossings(self):
+        """Test the complete rotation sequence tracks zero crossings correctly."""
+        rotation_lines = [
+            "L68",  # 50 -> 82, crosses 0 once
+            "L30",  # 82 -> 52, no crossing
+            "R48",  # 52 -> 0, lands on 0 but doesn't cross
+            "L5",   # 0 -> 95, no crossing
+            "R60",  # 95 -> 55, crosses 0 once
+            "L55",  # 55 -> 0, lands on 0 but doesn't cross
+            "L1",   # 0 -> 99, no crossing
+            "L99",  # 99 -> 0, lands on 0 but doesn't cross
+            "R14",  # 0 -> 14, no crossing
+            "L82",  # 14 -> 32, crosses 0 once
+        ]
+
+        safe = SafeState(dial_size=100, current_position=50)
+
+        for line in rotation_lines:
+            rotation = parse_rotation_line(line)
+            safe.rotate(rotation)
+
+        # According to the problem, there are 3 zero crossings during rotations
+        self.assertEqual(
+            safe.get_zero_crossings(),
+            3,
+            "The sequence should have 3 zero crossings during rotations"
+        )
+
+    def test_total_zero_count(self):
+        """Test the total count of times the dial points at 0 (crossings + landings)."""
+        rotation_lines = [
+            "L68",
+            "L30",
+            "R48",
+            "L5",
+            "R60",
+            "L55",
+            "L1",
+            "L99",
+            "R14",
+            "L82",
+        ]
+
+        safe = SafeState(dial_size=100, current_position=50)
+        positions = safe.apply_rotations([parse_rotation_line(line) for line in rotation_lines])
+
+        # Count how many times we landed on 0
+        times_landed_on_zero = positions.count(0)
+
+        # Count how many times we crossed 0 during rotation
+        times_crossed_zero = safe.get_zero_crossings()
+
+        # Total should be 6 according to the problem
+        total_zero_count = times_landed_on_zero + times_crossed_zero
+
+        self.assertEqual(times_landed_on_zero, 3, "Should land on 0 exactly 3 times")
+        self.assertEqual(times_crossed_zero, 3, "Should cross 0 during rotation 3 times")
+        self.assertEqual(
+            total_zero_count,
+            6,
+            "Total times dial points at 0 (landings + crossings) should be 6"
+        )
+
+
 if __name__ == '__main__':
     unittest.main()
