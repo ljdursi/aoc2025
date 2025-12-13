@@ -53,8 +53,7 @@ class Map:
         self.sources: list[Point] = []
 
         for row, line in enumerate(lines):
-            l = line.strip()
-            for col, char in enumerate(l):
+            for col, char in enumerate(line.strip()):
                 if char == MapCell.SOURCE.value:
                     self.sources.append(Point(row, col))
                     self.map[Point(row, col)] = MapCell.SOURCE
