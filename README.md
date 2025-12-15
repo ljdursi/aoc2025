@@ -1,4 +1,4 @@
-# aoc2025
+# AOC2025
 
 [![CodeFactor](https://www.codefactor.io/repository/github/ljdursi/aoc2025/badge)](https://www.codefactor.io/repository/github/ljdursi/aoc2025)
 
