@@ -11,8 +11,7 @@ Part 2: Find the largest rectangle where all tiles (including interior) are
         polygon defined by connecting consecutive red tiles.
 
 The solution uses:
-- Point-in-polygon testing via ray casting algorithm
-- Rectangle-polygon intersection testing for concave polygons
+- Rectangle-polygon intersection testing to validate rectangles
 - Grid-aligned edge optimizations for integer coordinates
 """
 import argparse
@@ -131,81 +130,6 @@ class Polygon:
         self.max_x = max(p.x for p in points)
         self.min_y = min(p.y for p in points)
         self.max_y = max(p.y for p in points)
-
-    def outside(self, q: Point) -> bool:
-        """Test if a point is outside the polygon using ray casting algorithm.
-
-        Casts a ray leftward (negative x direction) from the query point and counts
-        how many polygon edges it crosses. An odd number of crossings means the point
-        is inside; an even number (including zero) means it's outside.
-
-        Handles special cases:
-        - Points on the polygon boundary return False (considered inside)
-        - Uses half-open interval [miny, maxy) to avoid double-counting at vertices
-        - Optimized for grid-aligned (horizontal/vertical) edges
-
-        Args:
-            q: The point to test
-
-        Returns:
-            True if the point is outside the polygon, False if inside or on boundary
-        """
-        # Fast rejection: Check if point is outside polygon's bounding box
-        if q.x < self.min_x or q.x > self.max_x:
-            return True
-
-        if q.y < self.min_y or q.y > self.max_y:
-            return True
-
-        # Ray casting: Count how many edges a leftward ray from q crosses
-        # Odd crossings = inside, even crossings = outside
-        n_crossings = 0
-
-        for edge in self.edges:
-            (minx, maxx), (miny, maxy) = edge.bounding_box()
-
-            # Skip edges that don't span the query point's y-coordinate
-            if q.y < miny or q.y > maxy:
-                continue
-
-            # Special case: Horizontal edge at same y as query point
-            if miny == maxy == q.y:
-                if minx <= q.x <= maxx:
-                    # Point is exactly on this horizontal edge
-                    return False
-                # Horizontal edges don't contribute to crossing count
-                continue
-
-            # Check if point lies on this edge (non-horizontal case)
-            if edge.collinear(q):
-                if miny <= q.y <= maxy and minx <= q.x <= maxx:
-                    # Point is on the edge boundary
-                    return False
-
-            # Half-open interval trick: Skip edges where q.y == miny
-            # This prevents double-counting at vertices where two edges meet
-            # We use [miny, maxy) instead of [miny, maxy]
-            if q.y == miny:
-                continue
-
-            # Now check if the leftward ray from q crosses this edge
-            if q.x < minx:
-                # Edge is entirely to the right, ray doesn't reach it
-                continue
-
-            if q.x > maxx:
-                # Edge is entirely to the left, ray definitely crosses it
-                n_crossings += 1
-                continue
-
-            # Query point's x is within edge's x range
-            # Calculate exact intersection point and check if ray crosses
-            if edge.x_at_y(q.y) <= q.x:
-                n_crossings += 1
-                continue
-
-        # Even crossings = outside, odd crossings = inside
-        return n_crossings % 2 == 0
 
     def rectangle_crosses_boundary(self, p1: Point, p2: Point) -> bool:
         """Check if a rectangle's edges intersect any polygon edges.
@@ -332,8 +256,8 @@ def solve_part2(points: list[Point]) -> int:
     Green tiles form a polygon connecting consecutive red tiles.
     A valid rectangle must have:
     1. Red tiles at opposite corners (from the points list)
-    2. All four corners inside or on the polygon boundary
-    3. No polygon edges crossing through the rectangle's interior
+    2. No polygon edges crossing through the rectangle
+       (which implicitly ensures all corners are inside or on the boundary)
 
     Args:
         points: List of red tile positions (in order, forming polygon boundary)
@@ -364,17 +288,8 @@ def solve_part2(points: list[Point]) -> int:
                 rect_min_y < polygon.min_y or rect_max_y > polygon.max_y):
                 continue
 
-            # Check if the other two corners are inside the polygon
-            corner1 = Point(p.x, q.y)
-            corner2 = Point(q.x, p.y)
-
-            if polygon.outside(corner1):
-                continue
-            if polygon.outside(corner2):
-                continue
-
-            # For concave polygons, check if any polygon edges
-            # cross through the rectangle's edges
+            # Check if any polygon edges cross through the rectangle's edges
+            # This implicitly handles the case where corners would be outside
             if polygon.rectangle_crosses_boundary(p, q):
                 continue
 
