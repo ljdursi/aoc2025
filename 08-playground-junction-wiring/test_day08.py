@@ -4,7 +4,7 @@ Test suite for Advent of Code 2025 - Day 8: Wiring neighbouring junctions
 """
 import unittest
 import io
-from day08 import Point, UnionFind, get_inputs, nearest_n_neighbours, connected_circuits
+from day08 import Point, UnionFind, JunctionBox, get_inputs, nearest_n_neighbours
 
 
 class TestPoint(unittest.TestCase):
@@ -243,63 +243,132 @@ class TestNearestNNeighbours(unittest.TestCase):
         self.assertEqual(neighbours[0][0], expected_dist_sq)
 
 
-class TestConnectedCircuits(unittest.TestCase):
-    """Test cases for the connected_circuits function"""
+class TestJunctionBox(unittest.TestCase):
+    """Test cases for the JunctionBox class"""
 
-    def test_single_point_no_edges(self):
-        """Test single point with no edges"""
-        points = [Point(0, 0, 0)]
-        edges = []
-        circuits = connected_circuits(points, edges)
+    def test_initialization(self):
+        """Test that JunctionBox initializes correctly"""
+        points = [Point(i, 0, 0) for i in range(5)]
+        jb = JunctionBox(points)
 
-        self.assertEqual(len(circuits), 1)
-        self.assertEqual(len(circuits[0]), 1)
+        self.assertEqual(jb.num_circuits(), 5)  # All separate initially
+        self.assertEqual(len(jb.points), 5)
 
-    def test_two_points_connected(self):
-        """Test two points connected by an edge"""
+    def test_add_connection_returns_true_for_new(self):
+        """Test that add_connection returns True for new connections"""
         points = [Point(0, 0, 0), Point(1, 0, 0)]
-        edges = [(1, (0, 1))]
-        circuits = connected_circuits(points, edges)
+        jb = JunctionBox(points)
 
-        self.assertEqual(len(circuits), 1)
-        self.assertEqual(len(circuits[0]), 2)
+        result = jb.add_connection(0, 1)
+        self.assertTrue(result)
 
-    def test_two_points_not_connected(self):
-        """Test two points with no connecting edge"""
-        points = [Point(0, 0, 0), Point(1, 0, 0)]
-        edges = []
-        circuits = connected_circuits(points, edges)
+    def test_add_connection_returns_false_for_redundant(self):
+        """Test that add_connection returns False for redundant connections"""
+        points = [Point(i, 0, 0) for i in range(3)]
+        jb = JunctionBox(points)
 
-        self.assertEqual(len(circuits), 2)
-        self.assertTrue(all(len(c) == 1 for c in circuits))
+        jb.add_connection(0, 1)
+        jb.add_connection(1, 2)  # Now 0, 1, 2 are all connected
 
-    def test_chain_of_connections(self):
-        """Test chain: 0-1-2-3 all connected"""
+        result = jb.add_connection(0, 2)  # Redundant
+        self.assertFalse(result)
+
+    def test_num_circuits_decreases_with_connections(self):
+        """Test that num_circuits decreases as connections are made"""
         points = [Point(i, 0, 0) for i in range(4)]
+        jb = JunctionBox(points)
+
+        self.assertEqual(jb.num_circuits(), 4)
+        jb.add_connection(0, 1)
+        self.assertEqual(jb.num_circuits(), 3)
+        jb.add_connection(2, 3)
+        self.assertEqual(jb.num_circuits(), 2)
+        jb.add_connection(1, 2)
+        self.assertEqual(jb.num_circuits(), 1)
+
+    def test_circuit_sizes_correct(self):
+        """Test that circuit_sizes returns correct sizes"""
+        points = [Point(i, 0, 0) for i in range(6)]
+        jb = JunctionBox(points)
+
+        jb.add_connection(0, 1)  # Circuit of size 2
+        jb.add_connection(2, 3)  # Circuit of size 2
+        jb.add_connection(3, 4)  # Circuit of size 3
+        # Point 5 remains alone
+
+        sizes = jb.circuit_sizes()
+        self.assertEqual(sizes, [1, 2, 3])
+
+    def test_get_circuits_structure(self):
+        """Test that get_circuits returns correct structure"""
+        points = [Point(i, 0, 0) for i in range(4)]
+        jb = JunctionBox(points)
+
+        jb.add_connection(0, 1)
+        jb.add_connection(2, 3)
+
+        circuits = jb.get_circuits()
+        self.assertEqual(len(circuits), 2)
+
+        # Each circuit should have 2 elements
+        self.assertTrue(all(len(c) == 2 for c in circuits))
+
+    def test_add_connections_bulk(self):
+        """Test bulk adding connections"""
+        points = [Point(i, 0, 0) for i in range(5)]
+        jb = JunctionBox(points)
+
         edges = [
             (1, (0, 1)),
-            (1, (1, 2)),
-            (1, (2, 3))
+            (2, (1, 2)),
+            (3, (3, 4))
         ]
-        circuits = connected_circuits(points, edges)
 
-        self.assertEqual(len(circuits), 1)
-        self.assertEqual(len(circuits[0]), 4)
+        count = jb.add_connections(edges)
+        self.assertEqual(count, 3)  # All new
+        self.assertEqual(jb.num_circuits(), 2)  # {0,1,2} and {3,4}
 
-    def test_multiple_separate_circuits(self):
-        """Test multiple separate circuits"""
-        points = [Point(i, 0, 0) for i in range(6)]
+    def test_add_connections_with_redundant(self):
+        """Test that add_connections counts only new connections"""
+        points = [Point(i, 0, 0) for i in range(3)]
+        jb = JunctionBox(points)
+
         edges = [
-            (1, (0, 1)),  # Circuit 1: {0, 1}
-            (1, (2, 3)),  # Circuit 2: {2, 3}
-            (1, (3, 4))   # Extends circuit 2: {2, 3, 4}
+            (1, (0, 1)),
+            (2, (1, 2)),
+            (3, (0, 2))  # Redundant - 0 and 2 already connected via 1
         ]
-        # Result should be: {0,1}, {2,3,4}, {5}
-        circuits = connected_circuits(points, edges)
 
-        self.assertEqual(len(circuits), 3)
-        circuit_sizes = sorted([len(c) for c in circuits])
-        self.assertEqual(circuit_sizes, [1, 2, 3])
+        count = jb.add_connections(edges)
+        self.assertEqual(count, 2)  # Only 2 new connections
+
+    def test_get_connections_history(self):
+        """Test that get_connections returns connection history"""
+        points = [Point(i, 0, 0) for i in range(3)]
+        jb = JunctionBox(points)
+
+        jb.add_connection(0, 1, dist_sq=10)
+        jb.add_connection(1, 2, dist_sq=20)
+
+        history = jb.get_connections()
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0], (10, 0, 1))
+        self.assertEqual(history[1], (20, 1, 2))
+
+    def test_incremental_stopping_condition(self):
+        """Test incremental addition with stopping condition (key use case)"""
+        points = [Point(i, 0, 0) for i in range(10)]
+        jb = JunctionBox(points)
+
+        # Simulate adding connections until we reach 3 circuits
+        edges = [(i, (i, i+1)) for i in range(9)]  # Enough to connect all
+
+        for dist_sq, (i, j) in edges:
+            jb.add_connection(i, j, dist_sq)
+            if jb.num_circuits() == 3:
+                break
+
+        self.assertEqual(jb.num_circuits(), 3)
 
 
 class TestFullExample(unittest.TestCase):
@@ -350,20 +419,19 @@ class TestFullExample(unittest.TestCase):
     def test_example_ten_connections(self):
         """Test the example with 10 connections as specified in the problem"""
         neighbours = nearest_n_neighbours(self.example_points, 10)
-        circuits = connected_circuits(self.example_points, neighbours)
+        jb = JunctionBox(self.example_points)
+        jb.add_connections(neighbours)
 
         # After 10 connections, there should be 11 circuits
-        # (20 points - 10 connections + number_of_cycles, but if no cycles: 20 - 10 = 10...
-        # Actually the problem says 11 circuits)
-        # Let me re-read: "After making the ten shortest connections, there are 11 circuits"
-        self.assertEqual(len(circuits), 11)
+        self.assertEqual(jb.num_circuits(), 11)
 
     def test_example_circuit_sizes(self):
         """Test that circuit sizes match the problem description after 10 connections"""
         neighbours = nearest_n_neighbours(self.example_points, 10)
-        circuits = connected_circuits(self.example_points, neighbours)
+        jb = JunctionBox(self.example_points)
+        jb.add_connections(neighbours)
 
-        circuit_sizes = sorted([len(c) for c in circuits])
+        circuit_sizes = jb.circuit_sizes()
 
         # The problem states:
         # - one circuit with 5 junction boxes
@@ -376,9 +444,10 @@ class TestFullExample(unittest.TestCase):
     def test_example_result(self):
         """Test that the final result matches the expected answer of 40"""
         neighbours = nearest_n_neighbours(self.example_points, 10)
-        circuits = connected_circuits(self.example_points, neighbours)
+        jb = JunctionBox(self.example_points)
+        jb.add_connections(neighbours)
 
-        circuit_sizes = sorted([len(c) for c in circuits])
+        circuit_sizes = jb.circuit_sizes()
         # Multiply the three largest: 5 * 4 * 2 = 40
         result = circuit_sizes[-1] * circuit_sizes[-2] * circuit_sizes[-3]
 

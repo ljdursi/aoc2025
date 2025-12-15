@@ -3,10 +3,9 @@
 Advent of Code 2025 - Day 8: Wiring neighbouring junctions
 """
 import argparse
-import sys
 from typing import TextIO
 from dataclasses import dataclass
-import bisect
+from collections import defaultdict
 import functools
 import operator
 
@@ -100,6 +99,95 @@ class UnionFind:
         return self.find(p) == self.find(q)
 
 
+class JunctionBox:
+    """Manages junction boxes and their electrical connections.
+
+    Provides both incremental (one connection at a time) and bulk operations
+    for connecting junction boxes and analyzing the resulting circuits.
+    """
+
+    def __init__(self, points: list[Point]):
+        """Initialize with a list of junction box positions.
+
+        Args:
+            points: List of Point objects representing junction box locations
+        """
+        self.points = points
+        self.uf = UnionFind(len(points))
+        self._connections: list[tuple[int, int, int]] = []  # (dist_sq, i, j)
+
+    def add_connection(self, i: int, j: int, dist_sq: int = None) -> bool:
+        """Add a single connection between points i and j.
+
+        Args:
+            i: Index of first junction box
+            j: Index of second junction box
+            dist_sq: Optional squared distance (for record keeping)
+
+        Returns:
+            True if a new connection was made (points weren't already connected),
+            False if points were already in the same circuit
+        """
+        if dist_sq is not None:
+            self._connections.append((dist_sq, i, j))
+
+        were_connected = self.uf.connected(i, j)
+        self.uf.union(i, j)
+        return not were_connected
+
+    def add_connections(self, edges: list[tuple[int, tuple[int, int]]]) -> int:
+        """Bulk add multiple connections.
+
+        Args:
+            edges: List of (distance_squared, (i, j)) tuples representing connections
+
+        Returns:
+            Number of new connections made (excludes redundant connections)
+        """
+        count = 0
+        for dist_sq, (i, j) in edges:
+            if self.add_connection(i, j, dist_sq):
+                count += 1
+        return count
+
+    def num_circuits(self) -> int:
+        """Count the number of separate circuits.
+
+        Returns:
+            Number of disconnected circuit components
+        """
+        roots = set(self.uf.find(i) for i in range(len(self.points)))
+        return len(roots)
+
+    def get_circuits(self) -> list[list[int]]:
+        """Get all circuits as lists of point indices.
+
+        Returns:
+            List of circuits, where each circuit is a list of junction box indices
+        """
+        circuits: dict[int, list[int]] = defaultdict(list)
+        for i in range(len(self.points)):
+            root = self.uf.find(i)
+            circuits[root].append(i)
+        return list(circuits.values())
+
+    def circuit_sizes(self) -> list[int]:
+        """Get sorted list of circuit sizes.
+
+        Returns:
+            List of circuit sizes in ascending order
+        """
+        return sorted(len(c) for c in self.get_circuits())
+
+    def get_connections(self) -> list[tuple[int, int, int]]:
+        """Get the history of connections made.
+
+        Returns:
+            List of (dist_sq, i, j) tuples for all connections added
+        """
+        return self._connections.copy()
+
+
 def get_inputs(fileobj: TextIO) -> list[Point]:
     """Parse junction box positions from input file.
 
@@ -127,8 +215,7 @@ def get_inputs(fileobj: TextIO) -> list[Point]:
 def nearest_n_neighbours(points: list[Point], n: int = None) -> list[tuple[int, tuple[int, int]]]:
     """Find the n pairs of points with smallest distances.
 
-    Uses a bounded insertion algorithm to avoid computing and sorting all O(n²) pairs.
-    Maintains a sorted list of the n smallest distances seen so far.
+    Computes all pairwise distances and sorts them, returning the n smallest.
 
     Args:
         points: List of points to find nearest neighbors among
@@ -139,75 +226,23 @@ def nearest_n_neighbours(points: list[Point], n: int = None) -> list[tuple[int, 
         Indices satisfy i > j (each pair appears once).
     """
     n_points = len(points)
+    max_pairs = n_points * (n_points - 1) // 2
+
     if n is None:
-        # Total number of unique pairs
-        n = n_points * (n_points - 1) // 2
-
-    # Initialize with sentinel values larger than any real distance
-    distances: list[tuple[int, tuple[int, int]]] = [(sys.maxsize, (-1, -1))] * n
-
-    def insert_into_list(dist_sq: int, start: int, end: int) -> None:
-        """Insert a distance into the sorted list if it's small enough.
-
-        Maintains exactly n elements by removing the largest when inserting.
-        """
-        newpt = (dist_sq, (start, end))
-
-        # Skip if larger than our current largest
-        if dist_sq > distances[-1][0]:
-            return
-
-        # Fast path: new smallest element
-        if dist_sq < distances[0][0]:
-            distances[:] = [newpt] + distances[:-1]
-            return
-
-        # Binary search for insertion point
-        idx = bisect.bisect_left(distances, newpt)
-        if idx >= len(distances):
-            return
-        # Insert at idx and drop the last (largest) element
-        distances[:] = distances[0:idx] + [newpt] + distances[idx:-1]
+        n = max_pairs
 
     # Compute all pairwise distances
+    all_distances = []
     for i, p in enumerate(points):
         for j, q in enumerate(points):
             if i <= j:
                 continue
             dist_sq = p.dist_sq(q)
-            insert_into_list(dist_sq, i, j)
+            all_distances.append((dist_sq, (i, j)))
 
-    return distances
-
-
-def connected_circuits(points: list[Point], distance_edges: list[tuple[int, tuple[int, int]]]) -> list[list[int]]:
-    """Build connected circuits from a list of edges.
-
-    Uses Union-Find to efficiently track which points are connected as edges are added.
-
-    Args:
-        points: List of all points
-        distance_edges: List of (distance, (i, j)) tuples representing edges to add
-
-    Returns:
-        List of circuits, where each circuit is a list of point indices
-    """
-    n_points = len(points)
-
-    uf = UnionFind(n_points)
-    for _, (i, j) in distance_edges:
-        uf.union(i, j)
-
-    # Group points by their root component
-    circuits: dict[int, list[int]] = {}
-    for i in range(n_points):
-        root = uf.find(i)
-        if root not in circuits:
-            circuits[root] = [i]
-        else:
-            circuits[root].append(i)
-
-    return list(circuits.values())
+    # Sort and return the n smallest
+    all_distances.sort()
+    return all_distances[:n]
 
 
 def main() -> None:
@@ -224,21 +259,39 @@ def main() -> None:
     parser.add_argument(
         "n_connections",
         type=int,
-        nargs='?',
-        default=10,
-        help="Number of connections to make (default: 10)"
+        help="Number of closest pairs to connect"
     )
     args = parser.parse_args()
 
     points = get_inputs(args.input_file)
-    neighbours = nearest_n_neighbours(points, args.n_connections)
 
+    # Validate n_connections
+    max_pairs = len(points) * (len(points) - 1) // 2
+    if args.n_connections <= 0:
+        parser.error(f"n_connections must be positive, got {args.n_connections}")
+    if args.n_connections >= max_pairs:
+        parser.error(f"n_connections must be less than {max_pairs} (total possible pairs), got {args.n_connections}")
+
+    # Compute all pairwise distances once (sorted by distance)
+    all_edges = nearest_n_neighbours(points, n=None)
+
+    # Part 1: Connect the first n_connections closest pairs
     print("Part 1")
-    circuits = connected_circuits(points, neighbours)
-    circuit_lengths = sorted([len(c) for c in circuits])
-    result = functools.reduce(operator.mul, circuit_lengths[-3:])
+    jb = JunctionBox(points)
+    jb.add_connections(all_edges[:args.n_connections])
+    circuit_sizes = jb.circuit_sizes()
+    result = functools.reduce(operator.mul, circuit_sizes[-3:])
     print(result)
 
+    # Part 2: Continue adding connections until all boxes are in one circuit
+    print("Part 2")
+    for _, (i, j) in all_edges[args.n_connections:]:
+        jb.add_connection(i, j)
+        if jb.num_circuits() == 1:
+            # Checksum: product of x-coordinates of the final connecting points
+            result = points[i].x * points[j].x
+            print(result)
+            break
 
 if __name__ == "__main__":
     main()
