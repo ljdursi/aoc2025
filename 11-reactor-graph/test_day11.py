@@ -219,5 +219,51 @@ iii: out
         self.assertEqual(paths[0], ["a", "b", "c"])
 
 
+class TestCountPaths(unittest.TestCase):
+    """Test the count_paths method (optimized counting without storing paths)."""
+
+    def test_count_matches_all_paths_length(self):
+        """Verify count_paths gives same result as len(all_paths)."""
+        input_text = """aaa: you hhh
+you: bbb ccc
+bbb: ddd eee
+ccc: ddd eee fff
+ddd: ggg
+eee: out
+fff: out
+ggg: out
+hhh: ccc fff iii
+iii: out
+"""
+        edges = get_inputs(StringIO(input_text))
+        graph = DirectedGraph(edges)
+
+        all_paths = graph.all_paths("you", "out")
+        count = graph.count_paths("you", "out")
+
+        self.assertEqual(count, len(all_paths))
+
+    def test_count_with_avoid(self):
+        """Test counting paths with avoid list."""
+        edges = [
+            Edge("a", "b"), Edge("a", "c"),
+            Edge("b", "d"), Edge("c", "d"),
+            Edge("b", "x"), Edge("x", "d")
+        ]
+        graph = DirectedGraph(edges)
+
+        # Without avoid: 3 paths (a->b->d, a->c->d, a->b->x->d)
+        self.assertEqual(graph.count_paths("a", "d"), 3)
+
+        # Avoiding x: 2 paths (a->b->d, a->c->d)
+        self.assertEqual(graph.count_paths("a", "d", avoid=["x"]), 2)
+
+    def test_count_no_paths(self):
+        """Test counting when no paths exist."""
+        edges = [Edge("a", "b"), Edge("c", "d")]
+        graph = DirectedGraph(edges)
+        self.assertEqual(graph.count_paths("a", "d"), 0)
+
+
 if __name__ == "__main__":
     unittest.main()
